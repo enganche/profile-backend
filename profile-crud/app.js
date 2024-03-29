@@ -137,6 +137,121 @@ app.delete("/api/user/:id", (req, res, next) => {
 
 //END TUAN TEST
 
+// Login
+const jwt = require("jsonwebtoken");
+
+// Login endpoint
+app.post("/api/login", (req, res, next) => {
+  const { email, password } = req.body;
+
+  // Validate email and password
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
+  }
+
+  // Check if user exists and password is correct
+  const sql = "SELECT * FROM user WHERE email = ?";
+  const params = [email];
+  db.get(sql, params, async (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Compare passwords
+    const hashedPassword = md5(password);
+    if (hashedPassword !== user.password) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      "your-secret-key",
+      { expiresIn: "1h" }
+    );
+
+    res.json({ token });
+  });
+});
+
+// Middleware to protect routes
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) {
+    return res.sendStatus(401);
+  }
+
+  jwt.verify(token, "your-secret-key", (err, user) => {
+    if (err) {
+      return res.sendStatus(403);
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// Protected endpoint
+app.get("/api/protected", authenticateToken, (req, res, next) => {
+  res.json({ message: "Protected endpoint" });
+});
+
+// Register endpoint
+app.post("/api/register", (req, res, next) => {
+  const { name, email, password } = req.body;
+
+  // Validate input fields
+  if (!name || !email || !password) {
+    return res
+      .status(400)
+      .json({ error: "Name, email, and password are required." });
+  }
+
+  // Check if user with the same email already exists
+  const checkUserQuery = "SELECT * FROM user WHERE email = ?";
+  db.get(checkUserQuery, [email], async (err, existingUser) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (existingUser) {
+      return res
+        .status(409)
+        .json({ error: "User with this email already exists." });
+    }
+
+    try {
+      // Hash the password
+      const hashedPassword = await md5(password);
+
+      // Insert the new user into the database
+      const insertUserQuery =
+        "INSERT INTO user (name, email, password) VALUES (?, ?, ?)";
+      db.run(insertUserQuery, [name, email, hashedPassword], function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        // Get the ID of the newly inserted user
+        const userId = this.lastID;
+
+        // Generate JWT token
+        const token = jwt.sign({ userId, email }, "your-secret-key", {
+          expiresIn: "1h",
+        });
+
+        // Send response with token
+        res.json({ token });
+      });
+    } catch (error) {
+      console.error("Error registering user:", error);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  });
+});
+
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   next(createError(404));
