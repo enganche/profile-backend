@@ -137,7 +137,7 @@ app.delete("/api/user/:id", (req, res, next) => {
 
 //END TUAN TEST
 
-// Login
+// Login & Register endpoints
 const jwt = require("jsonwebtoken");
 
 // Login endpoint
