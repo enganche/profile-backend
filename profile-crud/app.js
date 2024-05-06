@@ -224,7 +224,7 @@ app.post("/api/register", (req, res, next) => {
 
     try {
       // Hash the password
-      const hashedPassword = await md5(password);
+      const hashedPassword = md5(password);
 
       // Insert the new user into the database
       const insertUserQuery =
